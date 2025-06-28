@@ -3,16 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>¡Despliegue Automático en AWS!</title>
-    <h1>¡Desplegado en AWS con CI/CD!</h1>
+    <title>Despliegue Exitoso</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
 <body>
+
     <div class="container">
-        <h1>¡App Funcionando en Docker!</h1>
-        <p>Esta página se sirve desde un contenedor Nginx en tu entorno cloud.</p>
-        <a href="/persistent.html" target="_blank">Verificar Archivo Persistente</a>
+        <header>
+            <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Docker_%28container_engine%29_logo.svg" alt="Docker Logo" class="logo">
+            <h1>¡Despliegue Exitoso!</h1>
+        </header>
+        
+        <main>
+            <p>Esta página está siendo servida por un contenedor <strong>Nginx</strong>, desplegado en una instancia <strong>AWS EC2</strong>.</p>
+            <p>El proceso de despliegue está automatizado con un pipeline de <strong>CI/CD</strong> usando <strong>GitHub Actions</strong>.</p>
+            
+            <div class="status-card">
+                <h2>Estado del Servidor</h2>
+                <p>Hora actual del servidor (actualizada por JS):</p>
+                <div id="live-time" class="time-display">Cargando...</div>
+            </div>
+
+            <div class="links">
+                <a href="/persistent.html" target="_blank" rel="noopener noreferrer">Verificar archivo persistente</a>
+                <a href="https://github.com/mafernandezz/VZeta_EV4.git" target="_blank" rel="noopener noreferrer">Ver Repositorio en GitHub</a>
+            </div>
+        </main>
+
+        <footer>
+            <p>Evaluación Técnica - Despliegue Continuo</p>
+        </footer>
     </div>
+
     <script src="js/main.js"></script>
 </body>
 </html>

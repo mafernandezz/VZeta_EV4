@@ -1,34 +1,4 @@
-name: CI/CD - Build and Deploy Nginx App
-
-on:
-  push:
-    branches: [ "main" ]
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up QEMU for multi-platform build
-        uses: docker/setup-qemu-action@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-technical-test:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-technical-test:${{ github.sha }}
+# ... (la parte de build-and-push no cambia) ...
 
   deploy:
     needs: build-and-push
@@ -44,7 +14,8 @@ jobs:
             # Variables
             CONTAINER_NAME="nginx-app"
             IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/nginx-technical-test:latest"
-            
+            PERSISTENT_DATA_PATH="/home/${{ secrets.EC2_USERNAME }}/app-data" # Ruta en el servidor EC2
+
             # Detener y eliminar el contenedor antiguo si existe
             docker stop ${CONTAINER_NAME} || true
             docker rm ${CONTAINER_NAME} || true
@@ -52,9 +23,11 @@ jobs:
             # Forzar la descarga de la nueva imagen desde Docker Hub
             docker pull ${IMAGE_NAME}
 
-            # Ejecutar el nuevo contenedor
+            # --- ESTA ES LA LÍNEA CLAVE ---
+            # Ejecutar el nuevo contenedor MONTANDO EL VOLUMEN
             docker run -d \
-              -p 8080:8080 \
+              -p 80:8080 \
               --name ${CONTAINER_NAME} \
               --restart always \
+              -v ${PERSISTENT_DATA_PATH}:/usr/share/nginx/html/persistent_data \
               ${IMAGE_NAME}
