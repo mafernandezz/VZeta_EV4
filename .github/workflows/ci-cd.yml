@@ -1,33 +1,104 @@
-# ... (la parte de build-and-push no cambia) ...
+# Nombre del workflow que aparecerá en la pestaña "Actions" de GitHub
+name: CI/CD - Build and Deploy Nginx App
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
+# Disparador del workflow: se ejecuta en cada push a la rama 'main'
+on:
+  push:
+    branches: [ "main" ]
+
+# Definición de los trabajos (jobs) que se ejecutarán
+jobs:
+  # --- TRABAJO 1: CONSTRUIR Y SUBIR LA IMAGEN A DOCKER HUB ---
+  build-and-push:
+    name: Build and Push to Docker Hub
+    runs-on: ubuntu-latest # Se ejecuta en una máquina virtual de Ubuntu
+    
     steps:
+      # 1. Clona el repositorio para tener acceso al código y al Dockerfile
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Configura QEMU para poder construir imágenes para múltiples arquitecturas (amd64, arm64)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 3. Configura Docker Buildx, una extensión para construir imágenes de forma avanzada
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Inicia sesión en Docker Hub usando los secrets guardados en GitHub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 5. Construye la imagen y la sube a Docker Hub
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: . # El contexto de construcción es la raíz del repositorio
+          file: ./Dockerfile # Ruta al Dockerfile
+          push: true # Indica que se debe subir la imagen al registro
+          platforms: linux/amd64,linux/arm64 # Construye para arquitecturas Intel/AMD y ARM (ej. AWS Graviton)
+          tags: | # Etiquetas para la imagen
+            ${{ secrets.DOCKERHUB_USERNAME }}/vz-ev4:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/vz-ev4:${{ github.sha }}
+
+  # --- TRABAJO 2: DESPLEGAR LA IMAGEN EN LA INSTANCIA EC2 ---
+  deploy:
+    name: Deploy to AWS EC2
+    needs: build-and-push # Este trabajo depende de que 'build-and-push' termine con éxito
+    runs-on: ubuntu-latest # También se ejecuta en una máquina de Ubuntu
+
+    steps:
+      # 1. Se conecta a la instancia EC2 por SSH y ejecuta los comandos de despliegue
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.0.3 # Usamos una versión específica por estabilidad
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Variables
-            CONTAINER_NAME="nginx-app"
-            IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/nginx-technical-test:latest"
-            PERSISTENT_DATA_PATH="/home/${{ secrets.EC2_USERNAME }}/app-data" # Ruta en el servidor EC2
+            # --- INICIO DEL SCRIPT EN EC2 ---
 
-            # Detener y eliminar el contenedor antiguo si existe
+            # Variables para facilitar la gestión
+            CONTAINER_NAME="nginx-app-prod"
+            IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/vz-ev4:latest"
+            PERSISTENT_DATA_HOST_PATH="/home/${{ secrets.EC2_USERNAME }}/app-data/persistent.html"
+            PERSISTENT_DATA_CONTAINER_PATH="/usr/share/nginx/html/persistent.html"
+
+            # Paso 1: Detener el contenedor antiguo si está en ejecución
+            echo "--- Stopping old container... ---"
             docker stop ${CONTAINER_NAME} || true
+            
+            # Paso 2: Eliminar el contenedor antiguo para evitar conflictos
+            echo "--- Removing old container... ---"
             docker rm ${CONTAINER_NAME} || true
 
-            # Forzar la descarga de la nueva imagen desde Docker Hub
+            # Paso 3: Forzar la descarga de la última versión de la imagen desde Docker Hub
+            echo "--- Pulling latest image from Docker Hub... ---"
             docker pull ${IMAGE_NAME}
 
-            # --- ESTA ES LA LÍNEA CLAVE ---
-            # Ejecutar el nuevo contenedor MONTANDO EL VOLUMEN
+            # Paso 4: Crear el archivo persistente si no existe (medida de seguridad)
+            # Nota: Es mejor crearlo manualmente la primera vez.
+            mkdir -p $(dirname ${PERSISTENT_DATA_HOST_PATH})
+            if [ ! -f ${PERSISTENT_DATA_HOST_PATH} ]; then
+              echo "<h1>Archivo persistente creado por el script de despliegue.</h1>" > ${PERSISTENT_DATA_HOST_PATH}
+            fi
+            
+            # Paso 5: Ejecutar el nuevo contenedor con las configuraciones correctas
+            echo "--- Running new container... ---"
             docker run -d \
               -p 80:8080 \
               --name ${CONTAINER_NAME} \
               --restart always \
-              -v ${PERSISTENT_DATA_PATH}:/usr/share/nginx/html/persistent_data \
+              -v ${PERSISTENT_DATA_HOST_PATH}:${PERSISTENT_DATA_CONTAINER_PATH} \
               ${IMAGE_NAME}
+
+            # Paso 6: Limpiar imágenes de Docker antiguas y no utilizadas
+            echo "--- Pruning old Docker images... ---"
+            docker image prune -a -f
+
+            echo "--- Deployment finished successfully! ---"
+            # --- FIN DEL SCRIPT EN EC2 ---
