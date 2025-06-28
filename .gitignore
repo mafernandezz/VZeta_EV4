@@ -1,0 +1,5 @@
+# Ignorar la carpeta de datos de prueba local
+app-data/
+
+# Ignorar directorios y archivos de sistema operativo
+.DS_Store
