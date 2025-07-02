@@ -70,15 +70,15 @@ jobs:
 
             # Paso 1: Detener el contenedor antiguo si está en ejecución
             echo "--- Stopping old container... ---"
-            docker stop ${CONTAINER_NAME} || true
+            sudo docker stop ${CONTAINER_NAME} || true
             
             # Paso 2: Eliminar el contenedor antiguo para evitar conflictos
             echo "--- Removing old container... ---"
-            docker rm ${CONTAINER_NAME} || true
+            sudo docker rm ${CONTAINER_NAME} || true
 
             # Paso 3: Forzar la descarga de la última versión de la imagen desde Docker Hub
             echo "--- Pulling latest image from Docker Hub... ---"
-            docker pull ${IMAGE_NAME}
+            sudo docker pull ${IMAGE_NAME}
 
             # Paso 4: Crear el archivo persistente si no existe (medida de seguridad)
             # Nota: Es mejor crearlo manualmente la primera vez.
@@ -89,7 +89,7 @@ jobs:
             
             # Paso 5: Ejecutar el nuevo contenedor con las configuraciones correctas
             echo "--- Running new container... ---"
-            docker run -d \
+            sudo docker run -d \
               -p 80:8080 \
               --name ${CONTAINER_NAME} \
               --restart always \
@@ -98,7 +98,7 @@ jobs:
 
             # Paso 6: Limpiar imágenes de Docker antiguas y no utilizadas
             echo "--- Pruning old Docker images... ---"
-            docker image prune -a -f
+            sudo docker image prune -a -f
 
             echo "--- Deployment finished successfully! ---"
             # --- FIN DEL SCRIPT EN EC2 ---
